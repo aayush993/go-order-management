@@ -3,47 +3,40 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"time"
+	"os"
 
+	"github.com/aayush993/go-order-management/common"
 	"github.com/streadway/amqp"
 )
 
-// PaymentRequest represents the structure of a payment request
-type PaymentRequest struct {
-	OrderID string `json:"orderId"`
-	Amount  int    `json:"amount"`
-}
+// All constants
+const (
+	amqpUrlStr = "AMQP_SERVER_URL"
 
-// PaymentResponse represents the structure of a payment response
-type PaymentResponse struct {
-	OrderID string `json:"orderId"`
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-}
-
-type Order struct {
-	ID           string    `json:"id"`
-	CustomerName string    `json:"customerName"`
-	Product      string    `json:"product"`
-	Quantity     int64     `json:"quantity"`
-	Amount       int64     `json:"amount"`
-	CreatedAt    time.Time `json:"createdAt"`
-	Status       string    `json:"status"`
-}
+	exchangeNameStr      = "EXCHANGE_NAME"
+	sendRoutingKeyStr    = "SEND_ROUTING_KEY"
+	receiveRoutingKeyStr = "RECEIVE_ROUTING_KEY"
+)
 
 func main() {
 
+	// Get config from environment
+	amqpServerURL := os.Getenv(amqpUrlStr)
+	exchangeName := os.Getenv(exchangeNameStr)
+	sendRoutingKey := os.Getenv(sendRoutingKeyStr)
+	receiveRoutingKey := os.Getenv(receiveRoutingKeyStr)
+
 	// Initialize rabbitMQ Client Service
-	rabbitmqService, err := NewRabbitMQService()
+	rabbitmqService, err := common.NewRabbitMQService(amqpServerURL)
 	if err != nil {
 		log.Fatalf("Failed to initialize RabbitMQ service: %v", err)
 	}
 	defer rabbitmqService.Close()
 
 	log.Printf("Checking orders to process payments. To exit, press CTRL+C")
-	err = rabbitmqService.Consume("orders_exchange", "ProcessingOrders", func(msgs <-chan amqp.Delivery) {
+	err = rabbitmqService.Consume(exchangeName, receiveRoutingKey, func(msgs <-chan amqp.Delivery) {
 		for d := range msgs {
-			var order Order
+			var order common.Order
 			err := json.Unmarshal(d.Body, &order)
 			if err != nil {
 				log.Printf("Failed to decode message: %v", err)
@@ -67,7 +60,7 @@ func main() {
 				log.Printf("failed to marshal order: %v", err)
 			}
 
-			err = rabbitmqService.Publish("orders_exchange", "ProcessedOrders", body)
+			err = rabbitmqService.Publish(exchangeName, sendRoutingKey, body)
 			if err != nil {
 				log.Printf("Failed to publish payment response: %v", err)
 			}

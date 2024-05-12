@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
-	"github.com/aayush993/go-order-management/internal/mbroker"
-	"github.com/aayush993/go-order-management/internal/types"
+	"github.com/aayush993/go-order-management/common"
 	"github.com/gorilla/mux"
 	"github.com/streadway/amqp"
 )
@@ -18,10 +18,10 @@ var exchangeName, sendRoutingKey, receiveRoutingKey string
 type APIServer struct {
 	listenAddr  string
 	store       Storage
-	rabbitmqSvc mbroker.MqSvc
+	rabbitmqSvc common.MqSvc
 }
 
-func NewAPIServer(listenAddr string, store Storage, rabbitmqSvc mbroker.MqSvc) *APIServer {
+func NewAPIServer(listenAddr string, store Storage, rabbitmqSvc common.MqSvc) *APIServer {
 	return &APIServer{
 		listenAddr:  listenAddr,
 		store:       store,
@@ -32,9 +32,9 @@ func NewAPIServer(listenAddr string, store Storage, rabbitmqSvc mbroker.MqSvc) *
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
-	exchangeName = "orders_exchange"
-	sendRoutingKey = "ProcessingOrders"
-	receiveRoutingKey = "ProcessedOrders"
+	exchangeName = os.Getenv(exchangeNameStr)
+	sendRoutingKey = os.Getenv(sendRoutingKeyStr)
+	receiveRoutingKey = os.Getenv(receiveRoutingKeyStr)
 
 	go s.ProcessPaymentsWorker()
 
@@ -51,7 +51,7 @@ func (s *APIServer) ProcessPaymentsWorker() {
 	log.Printf("Checking order payment status. To exit, press CTRL+C")
 	err := s.rabbitmqSvc.Consume(exchangeName, receiveRoutingKey, func(msgs <-chan amqp.Delivery) {
 		for d := range msgs {
-			var order types.Order
+			var order common.Order
 			err := json.Unmarshal(d.Body, &order)
 			if err != nil {
 				log.Printf("Failed to decode message: %v", err)
@@ -105,7 +105,7 @@ func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	order, err := types.NewOrder(req.CustomerName, req.Product, req.Quantity)
+	order, err := common.NewOrder(req.CustomerName, req.Product, req.Quantity)
 	if err != nil {
 		return err
 	}

@@ -4,22 +4,22 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/aayush993/go-order-management/internal/types"
+	"github.com/aayush993/go-order-management/common"
 	_ "github.com/lib/pq"
 )
 
 type Storage interface {
-	CreateOrder(*types.Order) error
-	GetOrderByID(int) (*types.Order, error)
-	UpdateOrder(order *types.Order) error
+	CreateOrder(*common.Order) error
+	GetOrderByID(int) (*common.Order, error)
+	UpdateOrder(order *common.Order) error
 }
 
 type PostgresStore struct {
 	db *sql.DB
 }
 
-func NewPostgresStore() (*PostgresStore, error) {
-	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable", "postgres", "tucowstores", "postgres")
+func NewPostgresStore(userName, password, dbName, host string) (*PostgresStore, error) {
+	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable host=%s", userName, password, dbName, host)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (s *PostgresStore) createOrdersTable() error {
 	return err
 }
 
-func (s *PostgresStore) GetOrderByID(id int) (*types.Order, error) {
+func (s *PostgresStore) GetOrderByID(id int) (*common.Order, error) {
 	rows, err := s.db.Query("select * from orders where id = $1", id)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (s *PostgresStore) GetOrderByID(id int) (*types.Order, error) {
 	return nil, fmt.Errorf("order %d not found", id)
 }
 
-func (s *PostgresStore) CreateOrder(order *types.Order) error {
+func (s *PostgresStore) CreateOrder(order *common.Order) error {
 	query := `insert into orders 
 	(id, customer_name, product_name, quantity, amount, status, created_at)
 	values ($1, $2, $3, $4, $5, $6, $7)`
@@ -88,7 +88,7 @@ func (s *PostgresStore) CreateOrder(order *types.Order) error {
 	return nil
 }
 
-func (s *PostgresStore) UpdateOrder(order *types.Order) error {
+func (s *PostgresStore) UpdateOrder(order *common.Order) error {
 	query := "UPDATE orders SET status=$1 WHERE id=$2"
 	_, err := s.db.Exec(query, order.Status, order.ID)
 
@@ -99,8 +99,8 @@ func (s *PostgresStore) UpdateOrder(order *types.Order) error {
 	return nil
 }
 
-func scanOrderValues(rows *sql.Rows) (*types.Order, error) {
-	order := new(types.Order)
+func scanOrderValues(rows *sql.Rows) (*common.Order, error) {
+	order := new(common.Order)
 	err := rows.Scan(
 		&order.ID,
 		&order.CustomerName,

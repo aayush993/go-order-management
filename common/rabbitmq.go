@@ -1,8 +1,7 @@
-package mbroker
+package common
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/streadway/amqp"
 )
@@ -19,8 +18,7 @@ type RabbitMQService struct {
 }
 
 // NewRabbitMQService creates a new instance of RabbitMQService
-func NewRabbitMQService() (*RabbitMQService, error) {
-	amqpServerURL := os.Getenv("AMQP_SERVER_URL")
+func NewRabbitMQService(amqpServerURL string) (*RabbitMQService, error) {
 	if amqpServerURL == "" {
 		amqpServerURL = "amqp://guest:guest@localhost:5672/"
 	}

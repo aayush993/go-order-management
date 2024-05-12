@@ -9,6 +9,7 @@ RUN go mod download
 
 # Copy the code into the container.
 COPY ./payment-processing-service/main.go .
+COPY ./common/*.go ./common/
 
 # Set necessary environment variables needed 
 # for our image and build the consumer.
