@@ -6,32 +6,80 @@ import (
 	"time"
 )
 
-type Order struct {
-	ID           string    `json:"id"`
-	CustomerName string    `json:"customerName"`
-	Product      string    `json:"product"`
-	Quantity     int64     `json:"quantity"`
-	Amount       int64     `json:"amount"`
-	CreatedAt    time.Time `json:"createdAt"`
-	Status       string    `json:"status"`
+const (
+	PaymentFailed      = "failed"
+	PaymentSuccessfull = "success"
+
+	OrderPending   = "Pending"
+	OrderConfirmed = "Confirmed"
+	OrderCanceled  = "Canceled"
+)
+
+type PaymentRequest struct {
+	OrderID    string  `json:"orderId"`
+	TotalPrice float64 `json:"totalPrice"`
 }
 
-func NewOrder(customerName, product string, quantity int64) (*Order, error) {
+type PaymentResponse struct {
+	OrderID       string `json:"orderId"`
+	PaymentStatus string `json:"paymentStatus"`
+}
+
+type Order struct {
+	ID         string    `json:"id"`
+	CustomerId string    `json:"customerId"`
+	ProductId  string    `json:"productId"`
+	Quantity   int64     `json:"quantity"`
+	TotalPrice float64   `json:"totalPrice"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type Customer struct {
+	CustomerId string `json:"customerId"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+}
+
+type Product struct {
+	ProductId string  `json:"productId"`
+	Name      string  `json:"name"`
+	Price     float64 `json:"email"`
+}
+
+func NewOrder(customerName, product string, quantity int64, productPrice float64) (*Order, error) {
 	return &Order{
-		ID:           generateOrderNumber(),
-		CustomerName: customerName,
-		Product:      product,
-		Quantity:     quantity,
-		Amount:       generateOrderAmount(quantity),
-		CreatedAt:    time.Now().UTC(),
-		Status:       "Pending",
+		ID:         generateNumber(),
+		CustomerId: customerName,
+		ProductId:  product,
+		Quantity:   quantity,
+		TotalPrice: generateOrderAmount(quantity, productPrice),
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+		Status:     OrderPending,
 	}, nil
 }
 
-func generateOrderNumber() string {
+func NewProduct(productName string, price float64) (*Product, error) {
+	return &Product{
+		ProductId: "1", // Can generate random ID for more entries in future
+		Name:      productName,
+		Price:     price,
+	}, nil
+}
+
+func NewCustomer(customerName, email string) (*Customer, error) {
+	return &Customer{
+		CustomerId: "1", // Can generate random ID for more entries in future
+		Name:       customerName,
+		Email:      email,
+	}, nil
+}
+func generateNumber() string {
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
 }
 
-func generateOrderAmount(quantity int64) int64 {
-	return quantity * 100
+func generateOrderAmount(quantity int64, productPrice float64) float64 {
+	return float64(quantity) * productPrice
 }

@@ -2,14 +2,16 @@ package common
 
 import (
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/streadway/amqp"
 )
 
 type MqSvc interface {
 	Close()
-	Publish(exchange, routingKey string, body []byte) error
-	Consume(exchange, routingKey string, workerFunc func(<-chan amqp.Delivery)) error
+	Publish(string, string, []byte, string, string) error
+	Consume(string, string, func(<-chan amqp.Delivery)) error
 }
 
 // RabbitMQService represents the RabbitMQ client service
@@ -19,13 +21,31 @@ type RabbitMQService struct {
 
 // NewRabbitMQService creates a new instance of RabbitMQService
 func NewRabbitMQService(amqpServerURL string) (*RabbitMQService, error) {
+	var conn *amqp.Connection
+	var err error
+
 	if amqpServerURL == "" {
 		amqpServerURL = "amqp://guest:guest@localhost:5672/"
 	}
-	conn, err := amqp.Dial(amqpServerURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %v", err)
+
+	// Retry loop with exponential backoff
+	for attempt := 1; attempt <= 10; attempt++ {
+		conn, err = amqp.Dial(amqpServerURL)
+		if err == nil {
+			log.Printf("Connected to RabbitMQ successfully!")
+			break
+		}
+
+		// Exponential backoff
+		delay := time.Duration(2^attempt) * time.Second
+		fmt.Printf("Failed to connect to RabbitMQ (attempt %d): %s Retrying in %v...\n", attempt, err, delay)
+		time.Sleep(delay)
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &RabbitMQService{conn: conn}, nil
 }
 
@@ -37,7 +57,7 @@ func (s *RabbitMQService) Close() {
 }
 
 // Publish publishes a message to RabbitMQ
-func (s *RabbitMQService) Publish(exchange, routingKey string, body []byte) error {
+func (s *RabbitMQService) Publish(exchange, routingKey string, body []byte, replyRoutingKey string, requestId string) error {
 	ch, err := s.conn.Channel()
 	if err != nil {
 		return fmt.Errorf("failed to open a channel: %v", err)
@@ -57,15 +77,28 @@ func (s *RabbitMQService) Publish(exchange, routingKey string, body []byte) erro
 		return fmt.Errorf("failed to declare an exchange: %v", err)
 	}
 
+	var message amqp.Publishing
+	if replyRoutingKey != "" {
+		message = amqp.Publishing{
+			ContentType:   "application/json",
+			ReplyTo:       replyRoutingKey,
+			CorrelationId: requestId,
+			Body:          body,
+		}
+	} else {
+		message = amqp.Publishing{
+			ContentType:   "application/json",
+			CorrelationId: requestId,
+			Body:          body,
+		}
+	}
+
 	err = ch.Publish(
 		exchange,   // Exchange
 		routingKey, // Routing key
 		false,      // Mandatory
 		false,      // Immediate
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        body,
-		},
+		message,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to publish a message: %v", err)
@@ -118,10 +151,19 @@ func (s *RabbitMQService) Consume(exchange, routingKey string, workerFunc func(<
 		return fmt.Errorf("failed to bind a queue: %v", err)
 	}
 
+	err = ch.Qos(
+		1,     // prefetch count
+		0,     // prefetch size
+		false, // global
+	)
+	if err != nil {
+		return fmt.Errorf("failed to set qos: %v", err)
+	}
+
 	msgs, err := ch.Consume(
 		q.Name, // queue
 		"",     // consumer
-		true,   // auto-ack
+		false,  // auto-ack
 		false,  // exclusive
 		false,  // no-local
 		false,  // no-wait

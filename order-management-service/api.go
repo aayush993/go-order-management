@@ -39,42 +39,11 @@ func (s *APIServer) Run() {
 	go s.ProcessPaymentsWorker()
 
 	// Register handlers for HTTP routes
-	router.HandleFunc("/orders", makeHTTPHandleFunc(s.HandleOrderCreate)).Methods("POST")
-	router.HandleFunc("/orders/{id}", makeHTTPHandleFunc(s.HandleOrderRetrieve)).Methods("GET")
+	router.HandleFunc("/orders", loggingMiddleware(makeHTTPHandleFunc(s.HandleOrderCreate))).Methods("POST")
+	router.HandleFunc("/orders/{id}", loggingMiddleware(makeHTTPHandleFunc(s.HandleOrderRetrieve))).Methods("GET")
 
-	log.Println("API server now listening on port: ", s.listenAddr)
+	log.Println("Server now listening on port: ", s.listenAddr)
 	http.ListenAndServe(s.listenAddr, router)
-}
-
-// ProcessPaymentsWorker Handles Payment responses from payment processing microservice
-func (s *APIServer) ProcessPaymentsWorker() {
-	log.Printf("Checking order payment status. To exit, press CTRL+C")
-	err := s.rabbitmqSvc.Consume(exchangeName, receiveRoutingKey, func(msgs <-chan amqp.Delivery) {
-		for d := range msgs {
-			var order common.Order
-			err := json.Unmarshal(d.Body, &order)
-			if err != nil {
-				log.Printf("Failed to decode message: %v", err)
-				continue
-			}
-
-			if order.Status != "pending" {
-				err = s.store.UpdateOrder(&order)
-				if err != nil {
-					log.Printf("Failed to update orderid %v in the table error: %v", order.ID, err)
-					continue
-				}
-				log.Printf("Order %v is %v", order.ID, order.Status)
-			} else {
-				log.Printf("Payment for order %v failed", order.ID)
-			}
-
-		}
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
 }
 
 // HandleOrderRetrieve handles the retrieval of an order by ID
@@ -93,19 +62,31 @@ func (s *APIServer) HandleOrderRetrieve(w http.ResponseWriter, r *http.Request) 
 }
 
 type CreateOrderRequest struct {
-	CustomerName string `json:"customer"`
-	Product      string `json:"product"`
-	Quantity     int64  `json:"quantity"`
+	CustomerId string `json:"customerId"`
+	ProductId  string `json:"productId"`
+	Quantity   int64  `json:"quantity"`
 }
 
 // HandleOrderCreate handles the creation of a new order
 func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) error {
 	var req CreateOrderRequest
+	requestID := r.Header.Get("X-Request-ID")
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return err
 	}
 
-	order, err := common.NewOrder(req.CustomerName, req.Product, req.Quantity)
+	// Validate customer Id
+	err := validateCustomerInfo(s.store, req.CustomerId)
+	if err != nil {
+		return err
+	}
+	// Get product price
+	product, err := getProductInformation(s.store, req.ProductId)
+	if err != nil {
+		return err
+	}
+
+	order, err := common.NewOrder(req.CustomerId, req.ProductId, req.Quantity, product.Price)
 	if err != nil {
 		return err
 	}
@@ -115,12 +96,15 @@ func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) er
 	}
 
 	// Publish message to RabbitMQ
-	body, err := json.Marshal(order)
+	body, err := json.Marshal(common.PaymentRequest{
+		OrderID:    order.ID,
+		TotalPrice: order.TotalPrice,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal order: %v", err)
 	}
 
-	err = s.rabbitmqSvc.Publish(exchangeName, sendRoutingKey, body)
+	err = s.rabbitmqSvc.Publish(exchangeName, sendRoutingKey, body, receiveRoutingKey, requestID)
 	if err != nil {
 		return err
 	}
@@ -149,6 +133,50 @@ func WriteJSONResponse(w http.ResponseWriter, status int, v any) error {
 	return json.NewEncoder(w).Encode(v)
 }
 
+// ProcessPaymentsWorker Handles Payment responses from payment processing microservice
+func (s *APIServer) ProcessPaymentsWorker() {
+	err := s.rabbitmqSvc.Consume(exchangeName, receiveRoutingKey, func(msgs <-chan amqp.Delivery) {
+		for d := range msgs {
+			requesId := d.CorrelationId
+
+			var response common.PaymentResponse
+			err := json.Unmarshal(d.Body, &response)
+			if err != nil {
+				log.Printf("[%s] Failed to decode message error: %v", requesId, err)
+				d.Ack(false)
+				continue
+			}
+
+			// Get order Status
+			var orderStatus string
+			switch response.PaymentStatus {
+			case common.PaymentSuccessfull:
+				orderStatus = common.OrderConfirmed
+			case common.PaymentFailed:
+				orderStatus = common.OrderCanceled
+			default:
+				log.Printf("[%s] Invalid payment response: %v", requesId, response)
+				d.Ack(false)
+				continue
+			}
+
+			err = s.store.UpdateOrderStatus(response.OrderID, orderStatus)
+			if err != nil {
+				log.Printf("[%s] Failed to update order status for order id: %s error: %v", requesId, response.OrderID, err)
+				d.Ack(false)
+				continue
+			}
+
+			d.Ack(false)
+			log.Printf("[%s] Order with id %s is %s", requesId, response.OrderID, orderStatus)
+		}
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+}
+
 func getID(r *http.Request) (int, error) {
 	idStr := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(idStr)
@@ -156,4 +184,28 @@ func getID(r *http.Request) (int, error) {
 		return id, fmt.Errorf("invalid id given %s", idStr)
 	}
 	return id, nil
+}
+
+func validateCustomerInfo(store Storage, custId string) error {
+	customerId, err := strconv.Atoi(custId)
+	if err != nil {
+		return fmt.Errorf("invalid customer id %s", custId)
+	}
+
+	customer, err := store.GetCustomerByID(customerId)
+	if err != nil || customer == nil {
+		return fmt.Errorf("invalid customer id %s", custId)
+	}
+
+	return nil
+}
+
+func getProductInformation(store Storage, prodId string) (*common.Product, error) {
+	productId, err := strconv.Atoi(prodId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid product id %s", prodId)
+	}
+
+	return store.GetProductByID(productId)
+
 }

@@ -23,7 +23,6 @@ func main() {
 	// Get config from environment
 	amqpServerURL := os.Getenv(amqpUrlStr)
 	exchangeName := os.Getenv(exchangeNameStr)
-	sendRoutingKey := os.Getenv(sendRoutingKeyStr)
 	receiveRoutingKey := os.Getenv(receiveRoutingKeyStr)
 
 	// Initialize rabbitMQ Client Service
@@ -33,38 +32,47 @@ func main() {
 	}
 	defer rabbitmqService.Close()
 
-	log.Printf("Checking orders to process payments. To exit, press CTRL+C")
+	log.Printf("Checking orders in queue to process payments. To exit, press CTRL+C")
 	err = rabbitmqService.Consume(exchangeName, receiveRoutingKey, func(msgs <-chan amqp.Delivery) {
 		for d := range msgs {
-			var order common.Order
-			err := json.Unmarshal(d.Body, &order)
+			requesId := d.CorrelationId
+
+			var req common.PaymentRequest
+
+			err := json.Unmarshal(d.Body, &req)
 			if err != nil {
-				log.Printf("Failed to decode message: %v", err)
+				log.Printf("Failed to decode message.  error: %v", err)
 				continue
 			}
 
 			// Simulate payment processing
+			var res common.PaymentResponse
+			res.OrderID = req.OrderID
+
 			var message string
-			if order.Amount <= 1000 {
+			if req.TotalPrice <= 1000 {
 				message = "Payment successful"
-				order.Status = "Confirmed"
+				res.PaymentStatus = common.PaymentSuccessfull
 			} else {
+				res.PaymentStatus = common.PaymentFailed
 				message = "Payment failed: Insufficient funds"
 			}
 
-			log.Printf("%s for order id: %v", message, order)
+			log.Printf("[%s] %s for order id: %v", requesId, message, req.OrderID)
 
 			// Publish payment response
-			body, err := json.Marshal(order)
+			body, err := json.Marshal(res)
 			if err != nil {
-				log.Printf("failed to marshal order: %v", err)
+				log.Printf("[%s] failed to marshal json: %v", requesId, err)
 			}
 
-			err = rabbitmqService.Publish(exchangeName, sendRoutingKey, body)
+			err = rabbitmqService.Publish(exchangeName, d.ReplyTo, body, "", requesId)
 			if err != nil {
-				log.Printf("Failed to publish payment response: %v", err)
+				log.Printf("[%s] Failed to publish payment response: %v", requesId, err)
 			}
-			log.Printf("Payment response published")
+
+			d.Ack(false)
+			log.Printf("[%s] Payment response published", requesId)
 		}
 	})
 	if err != nil {
