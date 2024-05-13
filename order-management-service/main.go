@@ -59,7 +59,7 @@ func main() {
 }
 
 func seedTables(dbStore *PostgresStore) {
-	product, err := common.NewProduct("Iphone", 199)
+	product, err := NewProduct("Iphone", 199)
 	if err != nil {
 		log.Fatalf("Failed to seed database: %v", err)
 	}
@@ -68,7 +68,7 @@ func seedTables(dbStore *PostgresStore) {
 		log.Fatalf("Failed to seed database: %v", err)
 	}
 
-	customer, err := common.NewCustomer("Luke Skywalker", "mail@naboo.com")
+	customer, err := NewCustomer("Luke Skywalker", "mail@naboo.com")
 	if err != nil {
 		log.Fatalf("Failed to seed database: %v", err)
 	}

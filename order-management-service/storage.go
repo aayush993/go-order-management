@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aayush993/go-order-management/common"
 	_ "github.com/lib/pq"
 )
 
@@ -37,13 +36,13 @@ create table if not exists orders (
 `
 
 type Storage interface {
-	CreateOrder(*common.Order) error
-	CreateProduct(*common.Product) error
-	CreateCustomer(*common.Customer) error
+	CreateOrder(*Order) error
+	CreateProduct(*Product) error
+	CreateCustomer(*Customer) error
 
-	GetOrderByID(int) (*common.Order, error)
-	GetProductByID(int) (*common.Product, error)
-	GetCustomerByID(id int) (*common.Customer, error)
+	GetOrderByID(int) (*Order, error)
+	GetProductByID(int) (*Product, error)
+	GetCustomerByID(id int) (*Customer, error)
 
 	UpdateOrderStatus(string, string) error
 }
@@ -73,7 +72,7 @@ func (s *PostgresStore) CreateTables() error {
 	return err
 }
 
-func (s *PostgresStore) GetOrderByID(id int) (*common.Order, error) {
+func (s *PostgresStore) GetOrderByID(id int) (*Order, error) {
 	rows, err := s.db.Query("select * from orders where id = $1", id)
 	if err != nil {
 		return nil, err
@@ -86,7 +85,7 @@ func (s *PostgresStore) GetOrderByID(id int) (*common.Order, error) {
 	return nil, fmt.Errorf("order id %d not found", id)
 }
 
-func (s *PostgresStore) GetCustomerByID(id int) (*common.Customer, error) {
+func (s *PostgresStore) GetCustomerByID(id int) (*Customer, error) {
 
 	rows, err := s.db.Query("select * from customers where customer_id = $1", id)
 	if err != nil {
@@ -100,7 +99,7 @@ func (s *PostgresStore) GetCustomerByID(id int) (*common.Customer, error) {
 	return nil, fmt.Errorf("customer id %d not found", id)
 }
 
-func (s *PostgresStore) GetProductByID(id int) (*common.Product, error) {
+func (s *PostgresStore) GetProductByID(id int) (*Product, error) {
 	rows, err := s.db.Query("select * from products where product_id = $1", id)
 	if err != nil {
 		return nil, err
@@ -113,7 +112,7 @@ func (s *PostgresStore) GetProductByID(id int) (*common.Product, error) {
 	return nil, fmt.Errorf("product id %d not found", id)
 }
 
-func (s *PostgresStore) CreateOrder(order *common.Order) error {
+func (s *PostgresStore) CreateOrder(order *Order) error {
 	query := `insert into orders 
 	(id, customer_id, product_id, quantity, total_price, status, created_at, updated_at)
 	values ($1, $2, $3, $4, $5, $6, $7, $8)`
@@ -136,7 +135,7 @@ func (s *PostgresStore) CreateOrder(order *common.Order) error {
 	return nil
 }
 
-func (s *PostgresStore) CreateProduct(product *common.Product) error {
+func (s *PostgresStore) CreateProduct(product *Product) error {
 	query := `insert into products 
 	(product_id, name, price)
 	values ($1, $2, $3)`
@@ -154,7 +153,7 @@ func (s *PostgresStore) CreateProduct(product *common.Product) error {
 	return nil
 }
 
-func (s *PostgresStore) CreateCustomer(customer *common.Customer) error {
+func (s *PostgresStore) CreateCustomer(customer *Customer) error {
 	query := `insert into customers 
 	(customer_id, name, email)
 	values ($1, $2, $3)`
@@ -183,8 +182,8 @@ func (s *PostgresStore) UpdateOrderStatus(orderId, status string) error {
 	return nil
 }
 
-func scanOrderValues(rows *sql.Rows) (*common.Order, error) {
-	order := new(common.Order)
+func scanOrderValues(rows *sql.Rows) (*Order, error) {
+	order := new(Order)
 	err := rows.Scan(
 		&order.ID,
 		&order.CustomerId,
@@ -198,8 +197,8 @@ func scanOrderValues(rows *sql.Rows) (*common.Order, error) {
 	return order, err
 }
 
-func scanProductValues(rows *sql.Rows) (*common.Product, error) {
-	product := new(common.Product)
+func scanProductValues(rows *sql.Rows) (*Product, error) {
+	product := new(Product)
 	err := rows.Scan(
 		&product.ProductId,
 		&product.Name,
@@ -208,8 +207,8 @@ func scanProductValues(rows *sql.Rows) (*common.Product, error) {
 	return product, err
 }
 
-func scanCustomerValues(rows *sql.Rows) (*common.Customer, error) {
-	customer := new(common.Customer)
+func scanCustomerValues(rows *sql.Rows) (*Customer, error) {
+	customer := new(Customer)
 	err := rows.Scan(
 		&customer.CustomerId,
 		&customer.Name,

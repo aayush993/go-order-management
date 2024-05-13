@@ -16,11 +16,19 @@ COPY ./common/*.go ./common/
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 RUN go build -ldflags="-s -w" -o oms .
 
+# Generate Swagger files
+RUN go get -u github.com/swaggo/swag/cmd/swag
+RUN go install github.com/swaggo/swag/cmd/swag
+RUN swag init -g ./main.go
+
 FROM scratch
 
 # Copy binary and config files from /build 
 # to root folder of scratch container.
 COPY --from=builder ["/build/oms", "/"]
+
+# Copy Swagger JSON file from /build/docs to /docs in the scratch container.
+COPY --from=builder ["/build/docs/swagger.json", "/docs/swagger.json"]
 
 # Command to run when starting the container.
 ENTRYPOINT ["/oms"]

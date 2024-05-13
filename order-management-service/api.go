@@ -11,6 +11,7 @@ import (
 	"github.com/aayush993/go-order-management/common"
 	"github.com/gorilla/mux"
 	"github.com/streadway/amqp"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 var sendQueueName, receiveQueueName string
@@ -41,6 +42,12 @@ func (s *APIServer) Run() {
 	router.HandleFunc("/orders", loggingMiddleware(makeHTTPHandleFunc(s.HandleOrderCreate))).Methods("POST")
 	router.HandleFunc("/orders/{id}", loggingMiddleware(makeHTTPHandleFunc(s.HandleOrderRetrieve))).Methods("GET")
 
+	// Serve Swagger UI
+	// currently not working
+	router.HandleFunc("/swagger/", httpSwagger.Handler(
+		httpSwagger.URL("/docs/swagger.json"), // URL pointing to the generated swagger.json file
+	))
+
 	log.Println("Server now listening on port: ", s.listenAddr)
 	http.ListenAndServe(s.listenAddr, router)
 }
@@ -67,6 +74,14 @@ type CreateOrderRequest struct {
 }
 
 // HandleOrderCreate handles the creation of a new order
+// @Summary Create a new order
+// @Description Create a new order with customer ID, product ID, and quantity
+// @Tags orders
+// @Accept json
+// @Produce json
+// @Param request body CreateOrderRequest true "Order request"
+// @Success 201 {object} Order
+// @Router /orders [post]
 func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) error {
 	var req CreateOrderRequest
 	requestID := r.Header.Get("X-Request-ID")
@@ -85,7 +100,7 @@ func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	order, err := common.NewOrder(req.CustomerId, req.ProductId, req.Quantity, product.Price)
+	order, err := NewOrder(req.CustomerId, req.ProductId, req.Quantity, product.Price)
 	if err != nil {
 		return err
 	}
@@ -151,9 +166,9 @@ func (s *APIServer) ProcessPaymentsWorker() {
 			var orderStatus string
 			switch response.PaymentStatus {
 			case common.PaymentSuccessfull:
-				orderStatus = common.OrderConfirmed
+				orderStatus = OrderConfirmed
 			case common.PaymentFailed:
-				orderStatus = common.OrderCanceled
+				orderStatus = OrderCanceled
 			default:
 				log.Printf("[%s] Invalid payment response: %v", requesId, response)
 				d.Ack(false)
@@ -200,7 +215,7 @@ func validateCustomerInfo(store Storage, custId string) error {
 	return nil
 }
 
-func getProductInformation(store Storage, prodId string) (*common.Product, error) {
+func getProductInformation(store Storage, prodId string) (*Product, error) {
 	productId, err := strconv.Atoi(prodId)
 	if err != nil {
 		return nil, fmt.Errorf("invalid product id %s", prodId)
