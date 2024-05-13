@@ -1,0 +1,55 @@
+definitions:
+  main.CreateOrderRequest:
+    properties:
+      customerId:
+        type: string
+      productId:
+        type: string
+      quantity:
+        type: integer
+    type: object
+  main.Order:
+    properties:
+      createdAt:
+        type: string
+      customerId:
+        type: string
+      id:
+        type: string
+      productId:
+        type: string
+      quantity:
+        type: integer
+      status:
+        type: string
+      totalPrice:
+        type: number
+      updatedAt:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /orders:
+    post:
+      consumes:
+      - application/json
+      description: Create a new order with customer ID, product ID, and quantity
+      parameters:
+      - description: Order request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/main.Order'
+      summary: Create a new order
+      tags:
+      - orders
+swagger: "2.0"
