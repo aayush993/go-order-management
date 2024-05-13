@@ -5,6 +5,7 @@ Setup guide for deploying go-order-management application, including all the nec
 ## Prerequisites
 - [Docker](https://docs.docker.com/get-docker/) installed
 - [Make](https://www.gnu.org/software/make/) utility installed
+- [GO](https://go.dev/doc/install) installed
 - Docker daemon is up and running
 
 ## Steps to Deploy
