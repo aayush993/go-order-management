@@ -13,7 +13,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
-var exchangeName, sendRoutingKey, receiveRoutingKey string
+var sendQueueName, receiveQueueName string
 
 type APIServer struct {
 	listenAddr  string
@@ -32,9 +32,8 @@ func NewAPIServer(listenAddr string, store Storage, rabbitmqSvc common.MqSvc) *A
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
-	exchangeName = os.Getenv(exchangeNameStr)
-	sendRoutingKey = os.Getenv(sendRoutingKeyStr)
-	receiveRoutingKey = os.Getenv(receiveRoutingKeyStr)
+	sendQueueName = os.Getenv(sendRoutingKeyStr)
+	receiveQueueName = os.Getenv(receiveRoutingKeyStr)
 
 	go s.ProcessPaymentsWorker()
 
@@ -104,10 +103,11 @@ func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) er
 		return fmt.Errorf("failed to marshal order: %v", err)
 	}
 
-	err = s.rabbitmqSvc.Publish(exchangeName, sendRoutingKey, body, receiveRoutingKey, requestID)
+	err = s.rabbitmqSvc.Publish(sendQueueName, body, receiveQueueName, requestID)
 	if err != nil {
 		return err
 	}
+	log.Printf("[%s] Sent order %s for payment processing", requestID, order.ID)
 
 	return WriteJSONResponse(w, http.StatusCreated, order)
 }
@@ -135,7 +135,7 @@ func WriteJSONResponse(w http.ResponseWriter, status int, v any) error {
 
 // ProcessPaymentsWorker Handles Payment responses from payment processing microservice
 func (s *APIServer) ProcessPaymentsWorker() {
-	err := s.rabbitmqSvc.Consume(exchangeName, receiveRoutingKey, func(msgs <-chan amqp.Delivery) {
+	err := s.rabbitmqSvc.Consume(receiveQueueName, func(msgs <-chan amqp.Delivery) {
 		for d := range msgs {
 			requesId := d.CorrelationId
 
@@ -168,7 +168,7 @@ func (s *APIServer) ProcessPaymentsWorker() {
 			}
 
 			d.Ack(false)
-			log.Printf("[%s] Order with id %s is %s", requesId, response.OrderID, orderStatus)
+			log.Printf("[%s] Payment for order id %s is %s", requesId, response.OrderID, response.PaymentStatus)
 		}
 	})
 	if err != nil {

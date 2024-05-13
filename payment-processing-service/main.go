@@ -22,7 +22,6 @@ func main() {
 
 	// Get config from environment
 	amqpServerURL := os.Getenv(amqpUrlStr)
-	exchangeName := os.Getenv(exchangeNameStr)
 	receiveRoutingKey := os.Getenv(receiveRoutingKeyStr)
 
 	// Initialize rabbitMQ Client Service
@@ -33,7 +32,7 @@ func main() {
 	defer rabbitmqService.Close()
 
 	log.Printf("Checking orders in queue to process payments. To exit, press CTRL+C")
-	err = rabbitmqService.Consume(exchangeName, receiveRoutingKey, func(msgs <-chan amqp.Delivery) {
+	err = rabbitmqService.Consume(receiveRoutingKey, func(msgs <-chan amqp.Delivery) {
 		for d := range msgs {
 			requesId := d.CorrelationId
 
@@ -41,7 +40,7 @@ func main() {
 
 			err := json.Unmarshal(d.Body, &req)
 			if err != nil {
-				log.Printf("Failed to decode message.  error: %v", err)
+				log.Printf("[%s] Failed to decode message error: %v", requesId, err)
 				continue
 			}
 
@@ -66,7 +65,7 @@ func main() {
 				log.Printf("[%s] failed to marshal json: %v", requesId, err)
 			}
 
-			err = rabbitmqService.Publish(exchangeName, d.ReplyTo, body, "", requesId)
+			err = rabbitmqService.Publish(d.ReplyTo, body, "", requesId)
 			if err != nil {
 				log.Printf("[%s] Failed to publish payment response: %v", requesId, err)
 			}
