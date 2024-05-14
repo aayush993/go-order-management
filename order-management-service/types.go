@@ -35,33 +35,33 @@ type Product struct {
 	Price     float64 `json:"email"`
 }
 
-func NewOrder(customerName, product string, quantity int64, productPrice float64) (*Order, error) {
+func NewOrder(customerId, productId string, quantity int64, productPrice float64) *Order {
 	return &Order{
 		ID:         generateNumber(),
-		CustomerId: customerName,
-		ProductId:  product,
+		CustomerId: customerId,
+		ProductId:  productId,
 		Quantity:   quantity,
 		TotalPrice: generateOrderAmount(quantity, productPrice),
 		CreatedAt:  time.Now().UTC(),
 		UpdatedAt:  time.Now().UTC(),
 		Status:     OrderPending,
-	}, nil
+	}
 }
 
-func NewProduct(productName string, price float64) (*Product, error) {
+func NewProduct(productName string, price float64) *Product {
 	return &Product{
 		ProductId: "1", // Can generate random ID for more entries in future
 		Name:      productName,
 		Price:     price,
-	}, nil
+	}
 }
 
-func NewCustomer(customerName, email string) (*Customer, error) {
+func NewCustomer(customerName, email string) *Customer {
 	return &Customer{
 		CustomerId: "1", // Can generate random ID for more entries in future
 		Name:       customerName,
 		Email:      email,
-	}, nil
+	}
 }
 func generateNumber() string {
 	return fmt.Sprintf("%06d", rand.Intn(1000000))

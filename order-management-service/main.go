@@ -53,25 +53,21 @@ func main() {
 	// seed table with customer and product
 	seedTables(dbStore)
 
+	svc := NewOrderManagementService(dbStore)
+
 	//Start API Server
-	server := NewAPIServer(":"+port, dbStore, rabbitmqService)
+	server := NewAPIServer(":"+port, rabbitmqService, svc)
 	server.Run()
 }
 
 func seedTables(dbStore *PostgresStore) {
-	product, err := NewProduct("Iphone", 199)
-	if err != nil {
-		log.Fatalf("Failed to seed database: %v", err)
-	}
+	product := NewProduct("Iphone", 199)
 
 	if err := dbStore.CreateProduct(product); err != nil && !strings.Contains(err.Error(), "duplicate key value") {
 		log.Fatalf("Failed to seed database: %v", err)
 	}
 
-	customer, err := NewCustomer("Luke Skywalker", "mail@naboo.com")
-	if err != nil {
-		log.Fatalf("Failed to seed database: %v", err)
-	}
+	customer := NewCustomer("Luke Skywalker", "mail@naboo.com")
 
 	if err := dbStore.CreateCustomer(customer); err != nil && !strings.Contains(err.Error(), "duplicate key value") {
 		log.Fatalf("Failed to seed database: %v", err)

@@ -18,15 +18,15 @@ var sendQueueName, receiveQueueName string
 
 type APIServer struct {
 	listenAddr  string
-	store       Storage
 	rabbitmqSvc common.MqSvc
+	svc         Service
 }
 
-func NewAPIServer(listenAddr string, store Storage, rabbitmqSvc common.MqSvc) *APIServer {
+func NewAPIServer(listenAddr string, rabbitmqSvc common.MqSvc, svc Service) *APIServer {
 	return &APIServer{
 		listenAddr:  listenAddr,
-		store:       store,
 		rabbitmqSvc: rabbitmqSvc,
+		svc:         svc,
 	}
 }
 
@@ -59,7 +59,8 @@ func (s *APIServer) HandleOrderRetrieve(w http.ResponseWriter, r *http.Request) 
 		return err
 
 	}
-	order, err := s.store.GetOrderByID(id)
+
+	order, err := s.svc.GetOrder(id)
 	if err != nil {
 		return err
 	}
@@ -89,23 +90,8 @@ func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	// Validate customer Id
-	err := validateCustomerInfo(s.store, req.CustomerId)
+	order, err := s.svc.CreateOrder(req.CustomerId, req.ProductId, req.Quantity)
 	if err != nil {
-		return err
-	}
-	// Get product price
-	product, err := getProductInformation(s.store, req.ProductId)
-	if err != nil {
-		return err
-	}
-
-	order, err := NewOrder(req.CustomerId, req.ProductId, req.Quantity, product.Price)
-	if err != nil {
-		return err
-	}
-
-	if err := s.store.CreateOrder(order); err != nil {
 		return err
 	}
 
@@ -122,8 +108,8 @@ func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return err
 	}
-	log.Printf("[%s] Sent order %s for payment processing", requestID, order.ID)
 
+	log.Printf("[%s] order %s in queue for processing", requestID, order.ID)
 	return WriteJSONResponse(w, http.StatusCreated, order)
 }
 
@@ -162,20 +148,8 @@ func (s *APIServer) ProcessPaymentsWorker() {
 				continue
 			}
 
-			// Get order Status
-			var orderStatus string
-			switch response.PaymentStatus {
-			case common.PaymentSuccessfull:
-				orderStatus = OrderConfirmed
-			case common.PaymentFailed:
-				orderStatus = OrderCanceled
-			default:
-				log.Printf("[%s] Invalid payment response: %v", requesId, response)
-				d.Ack(false)
-				continue
-			}
-
-			err = s.store.UpdateOrderStatus(response.OrderID, orderStatus)
+			// Update order status as per business logic
+			err = s.svc.UpdateOrderStatus(response.OrderID, response.PaymentStatus)
 			if err != nil {
 				log.Printf("[%s] Failed to update order status for order id: %s error: %v", requesId, response.OrderID, err)
 				d.Ack(false)
@@ -199,28 +173,4 @@ func getID(r *http.Request) (int, error) {
 		return id, fmt.Errorf("invalid id given %s", idStr)
 	}
 	return id, nil
-}
-
-func validateCustomerInfo(store Storage, custId string) error {
-	customerId, err := strconv.Atoi(custId)
-	if err != nil {
-		return fmt.Errorf("invalid customer id %s", custId)
-	}
-
-	customer, err := store.GetCustomerByID(customerId)
-	if err != nil || customer == nil {
-		return fmt.Errorf("invalid customer id %s", custId)
-	}
-
-	return nil
-}
-
-func getProductInformation(store Storage, prodId string) (*Product, error) {
-	productId, err := strconv.Atoi(prodId)
-	if err != nil {
-		return nil, fmt.Errorf("invalid product id %s", prodId)
-	}
-
-	return store.GetProductByID(productId)
-
 }
