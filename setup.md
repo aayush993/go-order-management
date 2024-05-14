@@ -39,7 +39,7 @@ Setup guide for deploying go-order-management application, including all the nec
       docker ps -a 
     ```
     Output:
-    ![alt text](image.png)
+    ![alt text](img/image.png)
 
     Wait for all the container statuses to be up as specified in the output image above.
    
@@ -51,8 +51,8 @@ Setup guide for deploying go-order-management application, including all the nec
     ```
   
     Wait for the services to establish connection to database and rabbitmq.
-    ![alt text](image-2.png)
-    ![alt text](image-1.png)
+    ![alt text](img/image-2.png)
+    ![alt text](img/image-1.png)
 
   
 5. Once the services are up, test the application using the following curl command:

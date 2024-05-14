@@ -11,25 +11,25 @@ import (
 // Database Schema
 const dbSchema = `create table if not exists customers (
 	customer_id serial primary key,
-	name varchar(100),
+	name varchar(100) NOT NULL,
 	email varchar(100)
 );
 
 create table if not exists products (
 	product_id serial primary key,
-	name varchar(100),
-	price DECIMAL(10, 2)
+	name varchar(100) NOT NULL,
+	price DECIMAL(10, 2) NOT NULL
 );
 
 create table if not exists orders (
 	id serial primary key,
-	customer_id INT,
-	product_id INT,
-	quantity INT,
-	total_price DECIMAL(10,2),
-	status varchar(50),
-	created_at timestamp,
-	updated_at timestamp,
+	customer_id INT NOT NULL,
+	product_id INT NOT NULL,
+	quantity INT NOT NULL,
+	total_price DECIMAL(10,2) NOT NULL,
+	status varchar(50) NOT NULL,
+	created_at timestamp NOT NULL,
+	updated_at timestamp NOT NULL,
 	FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
 	FOREIGN KEY (product_id) REFERENCES products(product_id)
 );
