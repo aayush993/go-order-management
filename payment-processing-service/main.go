@@ -11,10 +11,7 @@ import (
 
 // All constants
 const (
-	amqpUrlStr = "AMQP_SERVER_URL"
-
-	exchangeNameStr      = "EXCHANGE_NAME"
-	sendRoutingKeyStr    = "SEND_ROUTING_KEY"
+	amqpUrlStr           = "AMQP_SERVER_URL"
 	receiveRoutingKeyStr = "RECEIVE_ROUTING_KEY"
 )
 
@@ -22,7 +19,7 @@ func main() {
 
 	// Get config from environment
 	amqpServerURL := os.Getenv(amqpUrlStr)
-	receiveRoutingKey := os.Getenv(receiveRoutingKeyStr)
+	ordersQueueName := os.Getenv(receiveRoutingKeyStr)
 
 	// Initialize rabbitMQ Client Service
 	rabbitmqService, err := common.NewRabbitMQService(amqpServerURL)
@@ -31,12 +28,12 @@ func main() {
 	}
 	defer rabbitmqService.Close()
 
-	log.Printf("Checking orders in queue to process payments. To exit, press CTRL+C")
-	err = rabbitmqService.Consume(receiveRoutingKey, func(msgs <-chan amqp.Delivery) {
+	log.Printf("Checking orders in queue to process payments...")
+	err = rabbitmqService.Consume(ordersQueueName, func(msgs <-chan amqp.Delivery) {
 		for d := range msgs {
-			requesId := d.CorrelationId
 
 			var req common.PaymentRequest
+			requesId := d.CorrelationId
 
 			err := json.Unmarshal(d.Body, &req)
 			if err != nil {

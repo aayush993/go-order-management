@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-func loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
+// LoggingMiddleware Handles generating request id and capturing status for logging
+func LoggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 

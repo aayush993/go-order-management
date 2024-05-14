@@ -2,7 +2,7 @@ package common
 
 const (
 	PaymentFailed      = "failed"
-	PaymentSuccessfull = "success"
+	PaymentSuccessfull = "successfull"
 )
 
 type PaymentRequest struct {

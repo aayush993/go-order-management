@@ -44,6 +44,7 @@ func (s *OrderManagementService) CreateOrder(customerId, productId string, quant
 
 	return order, nil
 }
+
 func (s *OrderManagementService) GetOrder(id int) (*Order, error) {
 
 	order, err := s.repo.GetOrderByID(id)
@@ -52,6 +53,7 @@ func (s *OrderManagementService) GetOrder(id int) (*Order, error) {
 	}
 	return order, nil
 }
+
 func (s *OrderManagementService) UpdateOrderStatus(orderId, paymentStatus string) error {
 
 	// Get order Status
@@ -75,13 +77,13 @@ func (s *OrderManagementService) UpdateOrderStatus(orderId, paymentStatus string
 
 }
 
-func validateCustomerInfo(store Storage, custId string) error {
+func validateCustomerInfo(repo Storage, custId string) error {
 	customerId, err := strconv.Atoi(custId)
 	if err != nil {
 		return fmt.Errorf("invalid customer id %s", custId)
 	}
 
-	customer, err := store.GetCustomerByID(customerId)
+	customer, err := repo.GetCustomerByID(customerId)
 	if err != nil || customer == nil {
 		return fmt.Errorf("invalid customer id %s", custId)
 	}
@@ -89,12 +91,12 @@ func validateCustomerInfo(store Storage, custId string) error {
 	return nil
 }
 
-func getProductInformation(store Storage, prodId string) (*Product, error) {
+func getProductInformation(repo Storage, prodId string) (*Product, error) {
 	productId, err := strconv.Atoi(prodId)
 	if err != nil {
 		return nil, fmt.Errorf("invalid product id %s", prodId)
 	}
 
-	return store.GetProductByID(productId)
+	return repo.GetProductByID(productId)
 
 }

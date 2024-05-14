@@ -18,7 +18,7 @@ const dbSchema = `create table if not exists customers (
 create table if not exists products (
 	product_id serial primary key,
 	name varchar(100),
-	Price DECIMAL(10, 2)
+	price DECIMAL(10, 2)
 );
 
 create table if not exists orders (
@@ -42,7 +42,7 @@ type Storage interface {
 
 	GetOrderByID(int) (*Order, error)
 	GetProductByID(int) (*Product, error)
-	GetCustomerByID(id int) (*Customer, error)
+	GetCustomerByID(int) (*Customer, error)
 
 	UpdateOrderStatus(string, string) error
 }
@@ -51,8 +51,8 @@ type PostgresStore struct {
 	db *sql.DB
 }
 
-func NewPostgresStore(userName, password, dbName, host string) (*PostgresStore, error) {
-	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable host=%s", userName, password, dbName, host)
+func NewPostgresStore(config *DbConfig) (*PostgresStore, error) {
+	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=disable host=%s", config.User, config.Password, config.Name, config.Host)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err

@@ -5,26 +5,22 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/aayush993/go-order-management/common"
 	"github.com/gorilla/mux"
 	"github.com/streadway/amqp"
-	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-var sendQueueName, receiveQueueName string
-
 type APIServer struct {
-	listenAddr  string
+	config      *ServerConfig
 	rabbitmqSvc common.MqSvc
 	svc         Service
 }
 
-func NewAPIServer(listenAddr string, rabbitmqSvc common.MqSvc, svc Service) *APIServer {
+func NewAPIServer(config *ServerConfig, rabbitmqSvc common.MqSvc, svc Service) *APIServer {
 	return &APIServer{
-		listenAddr:  listenAddr,
+		config:      config,
 		rabbitmqSvc: rabbitmqSvc,
 		svc:         svc,
 	}
@@ -33,39 +29,22 @@ func NewAPIServer(listenAddr string, rabbitmqSvc common.MqSvc, svc Service) *API
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
-	sendQueueName = os.Getenv(sendRoutingKeyStr)
-	receiveQueueName = os.Getenv(receiveRoutingKeyStr)
-
+	// Worker process to listen to the processed payments
 	go s.ProcessPaymentsWorker()
 
 	// Register handlers for HTTP routes
-	router.HandleFunc("/orders", loggingMiddleware(makeHTTPHandleFunc(s.HandleOrderCreate))).Methods("POST")
-	router.HandleFunc("/orders/{id}", loggingMiddleware(makeHTTPHandleFunc(s.HandleOrderRetrieve))).Methods("GET")
+	router.HandleFunc("/orders", LoggingMiddleware(makeHTTPHandleFunc(s.HandleOrderCreate))).Methods("POST")
+	router.HandleFunc("/orders/{id}", LoggingMiddleware(makeHTTPHandleFunc(s.HandleOrderRetrieve))).Methods("GET")
 
 	// Serve Swagger UI
 	// currently not working
-	router.HandleFunc("/swagger/", httpSwagger.Handler(
-		httpSwagger.URL("/docs/swagger.json"), // URL pointing to the generated swagger.json file
-	))
+	// router.HandleFunc("/swagger/", httpSwagger.Handler(
+	// 	httpSwagger.URL("/docs/swagger.json"), // URL pointing to the generated swagger.json file
+	// ))
 
-	log.Println("Server now listening on port: ", s.listenAddr)
-	http.ListenAndServe(s.listenAddr, router)
-}
-
-// HandleOrderRetrieve handles the retrieval of an order by ID
-func (s *APIServer) HandleOrderRetrieve(w http.ResponseWriter, r *http.Request) error {
-	id, err := getID(r)
-	if err != nil {
-		return err
-
-	}
-
-	order, err := s.svc.GetOrder(id)
-	if err != nil {
-		return err
-	}
-
-	return WriteJSONResponse(w, http.StatusOK, order)
+	listenAddr := ":" + s.config.Port
+	log.Println("[x] Server now listening on port: ", listenAddr)
+	http.ListenAndServe(listenAddr, router)
 }
 
 type CreateOrderRequest struct {
@@ -84,8 +63,10 @@ type CreateOrderRequest struct {
 // @Success 201 {object} Order
 // @Router /orders [post]
 func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) error {
-	var req CreateOrderRequest
+
 	requestID := r.Header.Get("X-Request-ID")
+
+	var req CreateOrderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return err
 	}
@@ -104,7 +85,7 @@ func (s *APIServer) HandleOrderCreate(w http.ResponseWriter, r *http.Request) er
 		return fmt.Errorf("failed to marshal order: %v", err)
 	}
 
-	err = s.rabbitmqSvc.Publish(sendQueueName, body, receiveQueueName, requestID)
+	err = s.rabbitmqSvc.Publish(s.config.OrdersQueue, body, s.config.PaymentsStatusQueue, requestID)
 	if err != nil {
 		return err
 	}
@@ -134,10 +115,27 @@ func WriteJSONResponse(w http.ResponseWriter, status int, v any) error {
 	return json.NewEncoder(w).Encode(v)
 }
 
+// HandleOrderRetrieve handles the retrieval of an order by ID
+func (s *APIServer) HandleOrderRetrieve(w http.ResponseWriter, r *http.Request) error {
+	id, err := getID(r)
+	if err != nil {
+		return err
+
+	}
+
+	order, err := s.svc.GetOrder(id)
+	if err != nil {
+		return err
+	}
+
+	return WriteJSONResponse(w, http.StatusOK, order)
+}
+
 // ProcessPaymentsWorker Handles Payment responses from payment processing microservice
 func (s *APIServer) ProcessPaymentsWorker() {
-	err := s.rabbitmqSvc.Consume(receiveQueueName, func(msgs <-chan amqp.Delivery) {
+	err := s.rabbitmqSvc.Consume(s.config.PaymentsStatusQueue, func(msgs <-chan amqp.Delivery) {
 		for d := range msgs {
+			// Get correlation id for logging
 			requesId := d.CorrelationId
 
 			var response common.PaymentResponse

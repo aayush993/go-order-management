@@ -41,7 +41,7 @@ func NewOrder(customerId, productId string, quantity int64, productPrice float64
 		CustomerId: customerId,
 		ProductId:  productId,
 		Quantity:   quantity,
-		TotalPrice: generateOrderAmount(quantity, productPrice),
+		TotalPrice: calculateTotalPrice(quantity, productPrice),
 		CreatedAt:  time.Now().UTC(),
 		UpdatedAt:  time.Now().UTC(),
 		Status:     OrderPending,
@@ -67,6 +67,6 @@ func generateNumber() string {
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
 }
 
-func generateOrderAmount(quantity int64, productPrice float64) float64 {
+func calculateTotalPrice(quantity int64, productPrice float64) float64 {
 	return float64(quantity) * productPrice
 }

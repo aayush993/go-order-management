@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"os"
 	"strings"
 
 	"github.com/aayush993/go-order-management/common"
@@ -24,27 +23,22 @@ const (
 func main() {
 
 	// Get config from environment
-	amqpServerURL := os.Getenv(amqpUrlStr)
-	user := os.Getenv(pgUserStr)
-	pass := os.Getenv(pgPassStr)
-	dbName := os.Getenv(pgDbStr)
-	dbHost := os.Getenv(dbHostStr)
-	port := os.Getenv(portStr)
+	serverConfig, dbConfig := InitConfig()
 
 	// Initialize rabbitMQ Client Service
-	rabbitmqService, err := common.NewRabbitMQService(amqpServerURL)
+	rabbitmqService, err := common.NewRabbitMQService(serverConfig.AmqpUrl)
 	if err != nil {
 		log.Fatalf("Failed to initialize RabbitMQ service: %v", err)
 	}
 	defer rabbitmqService.Close()
-	log.Printf("RabbitMQ connection established")
+	log.Printf("[x] Message broker connected")
 
 	// Initialize Postgres Client Service
-	dbStore, err := NewPostgresStore(user, pass, dbName, dbHost)
+	dbStore, err := NewPostgresStore(dbConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
-	log.Printf("DB connection established")
+	log.Printf("[x] Database connected")
 
 	if err := dbStore.CreateTables(); err != nil {
 		log.Fatal(err)
@@ -56,7 +50,7 @@ func main() {
 	svc := NewOrderManagementService(dbStore)
 
 	//Start API Server
-	server := NewAPIServer(":"+port, rabbitmqService, svc)
+	server := NewAPIServer(serverConfig, rabbitmqService, svc)
 	server.Run()
 }
 

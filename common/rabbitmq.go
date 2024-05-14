@@ -32,13 +32,13 @@ func NewRabbitMQService(amqpServerURL string) (*RabbitMQService, error) {
 	for attempt := 1; attempt <= 10; attempt++ {
 		conn, err = amqp.Dial(amqpServerURL)
 		if err == nil {
-			log.Printf("Connected to RabbitMQ successfully!")
+			log.Printf("[x] Connected to RabbitMQ successfully!")
 			break
 		}
 
 		// Exponential backoff
 		delay := time.Duration(2^attempt) * time.Second
-		fmt.Printf("Failed to connect to RabbitMQ (attempt %d): %s Retrying in %v...\n", attempt, err, delay)
+		log.Printf("Connection failed %d: %s Retrying in %v...\n", attempt, err, delay)
 		time.Sleep(delay)
 	}
 
