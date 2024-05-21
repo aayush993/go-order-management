@@ -62,6 +62,7 @@ URL: http://localhost:3000
     - Example Request:
         ```
             {
+            "customerId": "1",
             "productId": "1",
             "quantity": 1
             }
